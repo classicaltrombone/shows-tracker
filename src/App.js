@@ -66,7 +66,6 @@ import axios from 'axios';
       
       if (data.features && data.features.length > 0) {
         const [lng, lat] = data.features[0].center;
-        console.log(`Geocoding success for ${address}:`, { lat, lng });
         return { lat, lng };
       }
       return null;
@@ -156,11 +155,6 @@ import axios from 'axios';
         // Wait for Mapbox to be available
         console.log('Waiting for Mapbox library...');
         await waitForMapbox();
-        console.log('Mapbox library loaded successfully:', {
-          mapboxglType: typeof window.mapboxgl,
-          mapboxglVersion: window.mapboxgl?.version,
-          mapboxglSupported: window.mapboxgl?.supported?.()
-        });
         
         if (!process.env.REACT_APP_MAPBOX_TOKEN) {
           console.error('=== MAPBOX TOKEN MISSING ===');
@@ -172,13 +166,7 @@ import axios from 'axios';
         console.log('Starting geocoding for', showsData.length, 'shows...');
         // Geocode all show addresses
         const geocodingPromises = showsData.map(async (show, index) => {
-          console.log(`Geocoding show ${index + 1}/${showsData.length}:`, show.address);
           const coords = await geocodeAddress(show.address);
-          if (coords) {
-            console.log(`✓ Geocoded ${show.address}:`, coords);
-          } else {
-            console.warn(`✗ Failed to geocode ${show.address}`);
-          }
           return coords ? { ...show, ...coords, isPast: isShowPast(show) } : null;
         });
 
@@ -192,9 +180,25 @@ import axios from 'axios';
         
         setGeocodedShows(validShows);
 
+        console.log('Map creation check:', {
+          containerRef: !!mapContainerRef.current,
+          containerElement: mapContainerRef.current,
+          validShowsLength: validShows.length,
+          validShowsSample: validShows.slice(0, 2),
+          canCreateMap: !!(mapContainerRef.current && validShows.length > 0)
+        });
+
         if (mapContainerRef.current && validShows.length > 0) {
           console.log('Creating Mapbox map instance...');
           window.mapboxgl.accessToken = process.env.REACT_APP_MAPBOX_TOKEN;
+
+          // Double-check container is still available
+          if (!mapContainerRef.current) {
+            console.error('Container ref became null during map creation');
+            setError('Map container not available');
+            setIsLoading(false);
+            return;
+          }
           
           const mapInstance = new window.mapboxgl.Map({
             container: mapContainerRef.current,
