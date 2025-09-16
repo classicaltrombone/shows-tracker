@@ -47,7 +47,6 @@ import axios from 'axios';
   // Geocode addresses to get coordinates
   const geocodeAddress = async (address) => {
     try {
-      console.log(`Geocoding request for: ${address}`);
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
@@ -134,13 +133,6 @@ import axios from 'axios';
 
     // Only initialize once
     if (mapInitializedRef.current) return;
-
-    // Wait for container to be available in DOM
-    if (!mapContainerRef.current) {
-      console.log('Container not ready yet, will retry...');
-      return;
-    }
-
     const initializeMap = async () => {
       try {
         console.log('=== MAP INITIALIZATION START ===', {
@@ -152,17 +144,11 @@ import axios from 'axios';
           containerExists: !!mapContainerRef.current
         });
 
-        console.log('Environment check:', {
-          mapboxToken: process.env.REACT_APP_MAPBOX_TOKEN ? `Present (${process.env.REACT_APP_MAPBOX_TOKEN.substring(0, 10)}...)` : 'MISSING',
-          allReactEnvVars: Object.keys(process.env).filter(key => key.startsWith('REACT_APP')),
-          windowMapboxgl: typeof window.mapboxgl,
-          windowMapboxglExists: 'mapboxgl' in window
-        });
+        console.log('Mapbox token present:', !!process.env.REACT_APP_MAPBOX_TOKEN);
 
         // Wait for Mapbox to be available
         console.log('Waiting for Mapbox library...');
         await waitForMapbox();
-        
         if (!process.env.REACT_APP_MAPBOX_TOKEN) {
           console.error('=== MAPBOX TOKEN MISSING ===');
           setError('Mapbox access token not found. Please add REACT_APP_MAPBOX_TOKEN to your environment variables.');
