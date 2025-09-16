@@ -119,6 +119,13 @@ import axios from 'axios';
   }, []);
 
   React.useEffect(() => {
+
+    // Force reset on production if needed
+    if (process.env.NODE_ENV === 'production' && mapInitializedRef.current && !map) {
+      console.log('Resetting map initialization flag for production');
+      mapInitializedRef.current = false;
+    }
+
     // Only initialize once
     if (mapInitializedRef.current) return;
     const initializeMap = async () => {
@@ -170,7 +177,7 @@ import axios from 'axios';
     return () => {
       // Don't cleanup the map here - let the separate cleanup effect handle it
     };
-  }, [showsData, isShowPast]);
+  }, [showsData, isShowPast, map]);
       React.useEffect(() => {
     return () => {
       if (map) {
