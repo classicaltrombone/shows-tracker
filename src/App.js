@@ -47,6 +47,7 @@ import axios from 'axios';
   // Geocode addresses to get coordinates
   const geocodeAddress = async (address) => {
     try {
+      console.log(`Geocoding request for: ${address}`);
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
@@ -65,11 +66,17 @@ import axios from 'axios';
       
       if (data.features && data.features.length > 0) {
         const [lng, lat] = data.features[0].center;
+        console.log(`Geocoding success for ${address}:`, { lat, lng });
         return { lat, lng };
       }
       return null;
     } catch (error) {
-      console.error('Geocoding error for address:', address, error);
+      console.error('Geocoding error for address:', address, {
+        errorMessage: error.message,
+        errorName: error.name,
+        isAbortError: error.name === 'AbortError',
+        isNetworkError: error.message.includes('fetch')
+      });
       return null;
     }
   };
@@ -130,26 +137,63 @@ import axios from 'axios';
     if (mapInitializedRef.current) return;
     const initializeMap = async () => {
       try {
+        console.log('=== MAP INITIALIZATION START ===', {
+          nodeEnv: process.env.NODE_ENV,
+          timestamp: new Date().toISOString(),
+          mapInitialized: mapInitializedRef.current,
+          mapExists: !!map,
+          showsDataLength: showsData.length,
+          containerExists: !!mapContainerRef.current
+        });
+
+        console.log('Environment check:', {
+          mapboxToken: process.env.REACT_APP_MAPBOX_TOKEN ? `Present (${process.env.REACT_APP_MAPBOX_TOKEN.substring(0, 10)}...)` : 'MISSING',
+          allReactEnvVars: Object.keys(process.env).filter(key => key.startsWith('REACT_APP')),
+          windowMapboxgl: typeof window.mapboxgl,
+          windowMapboxglExists: 'mapboxgl' in window
+        });
+
         // Wait for Mapbox to be available
+        console.log('Waiting for Mapbox library...');
         await waitForMapbox();
+        console.log('Mapbox library loaded successfully:', {
+          mapboxglType: typeof window.mapboxgl,
+          mapboxglVersion: window.mapboxgl?.version,
+          mapboxglSupported: window.mapboxgl?.supported?.()
+        });
         
         if (!process.env.REACT_APP_MAPBOX_TOKEN) {
+          console.error('=== MAPBOX TOKEN MISSING ===');
           setError('Mapbox access token not found. Please add REACT_APP_MAPBOX_TOKEN to your environment variables.');
           setIsLoading(false);
           return;
         }
 
+        console.log('Starting geocoding for', showsData.length, 'shows...');
         // Geocode all show addresses
-          const geocodingPromises = showsData.map(async (show) => {
+        const geocodingPromises = showsData.map(async (show, index) => {
+          console.log(`Geocoding show ${index + 1}/${showsData.length}:`, show.address);
           const coords = await geocodeAddress(show.address);
+          if (coords) {
+            console.log(`✓ Geocoded ${show.address}:`, coords);
+          } else {
+            console.warn(`✗ Failed to geocode ${show.address}`);
+          }
           return coords ? { ...show, ...coords, isPast: isShowPast(show) } : null;
         });
 
         const results = await Promise.all(geocodingPromises);
         const validShows = results.filter(show => show !== null);
+        console.log('Geocoding complete:', {
+          totalShows: showsData.length,
+          validShows: validShows.length,
+          failedShows: showsData.length - validShows.length
+        });
+        
         setGeocodedShows(validShows);
 
         if (mapContainerRef.current && validShows.length > 0) {
+          console.log('Creating Mapbox map instance...');
           window.mapboxgl.accessToken = process.env.REACT_APP_MAPBOX_TOKEN;
           
           const mapInstance = new window.mapboxgl.Map({
@@ -159,15 +203,34 @@ import axios from 'axios';
             zoom: 3
           });
 
+          console.log('Map instance created, waiting for load event...');
+          
           // Wait for the map to load before setting it
           mapInstance.on('load', () => {
+            console.log('✓ Map loaded successfully!');
             setMap(mapInstance);
-          mapInitializedRef.current = true;
+            mapInitializedRef.current = true;
+          });
+
+          mapInstance.on('error', (e) => {
+            console.error('Map error event:', e);
+          });
+
+        } else {
+          console.warn('Cannot create map:', {
+            containerExists: !!mapContainerRef.current,
+            validShowsCount: validShows.length
           });
         }
         
+        console.log('Setting loading to false...');
         setIsLoading(false);
       } catch (error) {
+        console.error('=== MAP INITIALIZATION ERROR ===', {
+          errorMessage: error.message,
+          errorStack: error.stack,
+          errorName: error.name
+        });
         setError(`Error initializing map: ${error.message}`);
         setIsLoading(false);
       }
