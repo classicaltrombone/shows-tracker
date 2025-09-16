@@ -134,6 +134,13 @@ import axios from 'axios';
 
     // Only initialize once
     if (mapInitializedRef.current) return;
+
+    // Wait for container to be available in DOM
+    if (!mapContainerRef.current) {
+      console.log('Container not ready yet, will retry...');
+      return;
+    }
+
     const initializeMap = async () => {
       try {
         console.log('=== MAP INITIALIZATION START ===', {
