@@ -123,17 +123,21 @@ import axios from 'axios';
     return Object.values(venueGroups);
   }, []);
 
+  // Separate effect to initialize map once container is ready
   React.useEffect(() => {
+    if (!mapContainerRef.current || mapInitializedRef.current || showsData.length === 0) return;
+    
+        // Add a small delay to ensure DOM has rendered
+    const timeoutId = setTimeout(() => {
+      if (!mapContainerRef.current || mapInitializedRef.current || showsData.length === 0) {
+        console.log('Container still not ready after timeout');
+        return;
+      }
+      
+      console.log('Container ready, starting map initialization...');
+      
+      const initializeMap = async () => {
 
-    // Force reset on production if needed
-    if (process.env.NODE_ENV === 'production' && mapInitializedRef.current && !map) {
-      console.log('Resetting map initialization flag for production');
-      mapInitializedRef.current = false;
-    }
-
-    // Only initialize once
-    if (mapInitializedRef.current) return;
-    const initializeMap = async () => {
       try {
         console.log('=== MAP INITIALIZATION START ===', {
           nodeEnv: process.env.NODE_ENV,
@@ -149,6 +153,7 @@ import axios from 'axios';
         // Wait for Mapbox to be available
         console.log('Waiting for Mapbox library...');
         await waitForMapbox();
+        
         if (!process.env.REACT_APP_MAPBOX_TOKEN) {
           console.error('=== MAPBOX TOKEN MISSING ===');
           setError('Mapbox access token not found. Please add REACT_APP_MAPBOX_TOKEN to your environment variables.');
@@ -232,12 +237,30 @@ import axios from 'axios';
         setIsLoading(false);
       }
     };
+    
     initializeMap();
+    }, 100); // 100ms delay
+    
+    return () => clearTimeout(timeoutId);
+  }, [showsData.length, isShowPast]);
+
+    React.useEffect(() => {
+    // Force reset on production if needed
+    if (process.env.NODE_ENV === 'production' && mapInitializedRef.current && !map) {
+      console.log('Resetting map initialization flag for production');
+      mapInitializedRef.current = false;
+    }
+
+    // Only initialize once - but now the actual initialization happens in the separate effect above
+    if (mapInitializedRef.current) return;
+    
+    // The container-ready effect above handles the actual initialization
     
     return () => {
       // Don't cleanup the map here - let the separate cleanup effect handle it
     };
-  }, [showsData, isShowPast, map]);
+  }, [map]);
+
       React.useEffect(() => {
     return () => {
       if (map) {
